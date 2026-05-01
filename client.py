@@ -2,106 +2,152 @@ import socket
 import threading
 import json
 from datetime import datetime
-import os
-from utils.crypto_utils import (
-    verificar_certificado, gerar_par_chaves, carregar_certificado_broker,
-    descriptografar_aes, descriptografar_ec, carregar_chave_privada_pem,
-    load_ca_cert
-)
-from utils.pubsub_utils import enviar_sub, enviar_pub 
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
-import base64
 
-BROKER_HOST = 'localhost'
+BROKER_HOST = "localhost"
 BROKER_PORT = 1883
-CA_CERT_PATH = 'certs/ca_cert.cer'
+
 
 class ClienteWeb:
-    def enviar_sub(self, topico):
-        enviar_sub(self, topico)
-
-    def enviar_pub(self, topico, mensagem):
-       enviar_pub(self, topico, mensagem)
-        
     def __init__(self):
         self.socket = None
-        self.mensagens = []
-        self.conectado = False
         self.nome_cliente = ""
-        self.pub_key_path = ""
-        self.priv_key_path = ""
-        self.subscricoes = []
+        self.conectado = False
+        self.mensagens = []
+        self.topicos = []
+        self.buffer = ""
 
-    def receber_mensagens(self):
-        while self.conectado:
-            try:
-                data = self.socket.recv(4096)
-                if not data:
-                    print(f"[DEBUG] Conexão com broker encerrada para {self.nome_cliente}")
-                    break
-                pacote = json.loads(data.decode())
-                if pacote.get("tipo") == "mensagem":
-                    topico = pacote.get("topico")
-                    mensagem = pacote.get("mensagem")
-                    destinatario = pacote.get("destinatario")
-                    if destinatario != self.nome_cliente:
-                        print(f"[DEBUG] Ignorando mensagem para {destinatario}, cliente atual: {self.nome_cliente}")
-                        continue
-                    chave_aes_cript = mensagem["aes"]
-                    msg_criptografada = bytes.fromhex(mensagem["msg"])
-                    ephemeral_public_key_pem = mensagem["ephemeral_public_key"]
-                    private_key = carregar_chave_privada_pem(self.priv_key_path, senha=None)
-                    chave_aes = descriptografar_ec(chave_aes_cript, ephemeral_public_key_pem, private_key)
-                    mensagem_clara = descriptografar_aes(msg_criptografada, chave_aes)
-                    remetente = pacote.get("id", "Desconhecido")
-                    hora = datetime.now().strftime("%H:%M")
-                    mensagem_formatada = f"{remetente}: {mensagem_clara} [{hora}]"
-                    self.mensagens.append(f"[{topico}] {mensagem_formatada}")
-                    print(f"[DEBUG] Mensagem recebida no tópico {topico} de {remetente}: {mensagem_clara}")
-
-            except Exception as e:
-                print(f"[ERRO] Falha ao receber mensagem: {e}")
-                break
+    def enviar(self, pacote):
+        """
+        Envia um pacote JSON para o broker.
+        O \n serve para separar uma mensagem da outra.
+        """
+        mensagem = json.dumps(pacote, ensure_ascii=False) + "\n"
+        self.socket.sendall(mensagem.encode("utf-8"))
 
     def conectar(self, nome_cliente):
         try:
             self.nome_cliente = nome_cliente
-            # Gera par de chaves e salva os caminhos
-            self.pub_key_path, self.priv_key_path = gerar_par_chaves(nome_cliente)
-            # Conexão com o broker
+
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.socket.connect((BROKER_HOST, BROKER_PORT))
-            # Receber certificado do broker
-            broker_cert_base64 = b""
-            while True:
-                chunk = self.socket.recv(2048)
-                broker_cert_base64 += chunk
-                if len(chunk) < 2048:
-                    break
-            cert_bytes = base64.b64decode(broker_cert_base64)
-            cert_obj = x509.load_pem_x509_certificate(cert_bytes, default_backend())
-            ca_cert_obj = load_ca_cert(CA_CERT_PATH)
-            if not verificar_certificado(cert_obj, ca_cert_obj):
-                return False, "Certificado do broker inválido."
-            # Enviar ID + chave pública
-            with open(self.pub_key_path, 'rb') as f:
-                chave_pub_pem = f.read().decode()
-            pacote_auth = json.dumps({
-                "tipo": "autenticacao",
-                "id": self.nome_cliente,
-                "chave_publica": chave_pub_pem
-            })
-            self.socket.send(pacote_auth.encode())
-            # Aguardar resposta
-            resposta = self.socket.recv(1024).decode()
-            if resposta.strip() != "AUTENTICADO":
-                return False, "Broker recusou a autenticação."
+
             self.conectado = True
-            threading.Thread(target=self.receber_mensagens, daemon=True).start()
-            print(f"[✓] Cliente {self.nome_cliente} conectado e autenticado")
-            return True, "Conectado e autenticado com sucesso."
+
+            # Envia identificação do cliente para o broker
+            self.enviar({
+                "tipo": "conectar",
+                "id": self.nome_cliente
+            })
+
+            # Thread para ficar recebendo mensagens
+            thread = threading.Thread(target=self.receber_mensagens)
+            thread.daemon = True
+            thread.start()
+
+            return True, f"Cliente {self.nome_cliente} conectado com sucesso."
+
         except Exception as e:
-            print(f"[ERRO] Erro na conexão para {self.nome_cliente}: {e}")
-            return False, f"Erro na conexão: {e}"
+            self.conectado = False
+            return False, f"Erro ao conectar: {e}"
+
+    def receber_mensagens(self):
+        while self.conectado:
+            try:
+                dados = self.socket.recv(4096)
+
+                if not dados:
+                    break
+
+                self.buffer += dados.decode("utf-8")
+
+                while "\n" in self.buffer:
+                    linha, self.buffer = self.buffer.split("\n", 1)
+
+                    if not linha.strip():
+                        continue
+
+                    pacote = json.loads(linha)
+                    tipo = pacote.get("tipo")
+
+                    if tipo == "mensagem":
+                        topico = pacote.get("topico")
+                        remetente = pacote.get("remetente")
+                        mensagem = pacote.get("mensagem")
+                        hora = datetime.now().strftime("%H:%M")
+
+                        texto = f"[{topico}] {remetente}: {mensagem} [{hora}]"
+                        self.mensagens.append(texto)
+
+                    elif tipo == "resposta":
+                        mensagem = pacote.get("mensagem")
+                        hora = datetime.now().strftime("%H:%M")
+
+                        texto = f"Sistema: {mensagem} [{hora}]"
+                        self.mensagens.append(texto)
+
+                    elif tipo == "topicos":
+                        self.topicos = pacote.get("topicos", [])
+
+                    elif tipo == "erro":
+                        mensagem = pacote.get("mensagem")
+                        self.mensagens.append(f"Erro: {mensagem}")
+
+            except Exception as e:
+                self.mensagens.append(f"Erro ao receber mensagem: {e}")
+                break
+
+        self.conectado = False
+
+    def criar_topico(self, topico):
+        if not self.conectado:
+            return False, "Cliente não está conectado."
+
+        self.enviar({
+            "tipo": "criar_topico",
+            "id": self.nome_cliente,
+            "topico": topico
+        })
+
+        return True, f"Solicitação para criar o tópico '{topico}' enviada."
+
+    def inscrever(self, topico):
+        if not self.conectado:
+            return False, "Cliente não está conectado."
+
+        self.enviar({
+            "tipo": "inscrever",
+            "id": self.nome_cliente,
+            "topico": topico
+        })
+
+        return True, f"Solicitação de inscrição no tópico '{topico}' enviada."
+
+    def publicar(self, topico, mensagem):
+        if not self.conectado:
+            return False, "Cliente não está conectado."
+
+        self.enviar({
+            "tipo": "publicar",
+            "id": self.nome_cliente,
+            "topico": topico,
+            "mensagem": mensagem
+        })
+
+        return True, f"Mensagem enviada para o tópico '{topico}'."
+
+    def listar_topicos(self):
+        if not self.conectado:
+            return False, "Cliente não está conectado."
+
+        self.enviar({
+            "tipo": "listar_topicos",
+            "id": self.nome_cliente
+        })
+
+        return True, "Solicitação de listagem de tópicos enviada."
+
+    def desconectar(self):
+        self.conectado = False
+
+        if self.socket:
+            self.socket.close()
