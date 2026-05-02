@@ -2,7 +2,7 @@ import socket
 import threading
 import json
 
-BROKER_HOST = "localhost"
+BROKER_HOST = "0.0.0.0"
 BROKER_PORT = 1883
 
 clientes_conectados = {}  # id_cliente -> conexão socket
