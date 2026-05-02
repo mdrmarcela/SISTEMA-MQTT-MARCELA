@@ -7,7 +7,7 @@ Este projeto consiste em uma infraestrutura de comunicação composta por um **b
 Nesta etapa inicial, o sistema deve permitir as seguintes funcionalidades:
 
 * Criação de tópicos;
-* Inscrição de clientes em grupos/tópicos;
+* Inscrição de clientes em tópicos;
 * Publicação de mensagens;
 * Recebimento de mensagens pelos clientes inscritos.
 
