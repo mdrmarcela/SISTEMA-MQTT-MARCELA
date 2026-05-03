@@ -109,7 +109,7 @@ cliente = st.session_state.cliente
 # Cabeçalho
 st.markdown(
     """
-    <div class="titulo-principal">💬 Redes Chat</div>
+    <div class="titulo-principal"> Redes Chat</div>
     <div class="subtitulo">
         Sistema de comunicação no modelo Publish/Subscribe com Broker e Clientes
     </div>
@@ -128,7 +128,7 @@ if not cliente.conectado:
 
         nome = st.text_input(
             "Nome do cliente:",
-            placeholder="Exemplo: cliente1"
+            placeholder="Exemplo: Cliente1"
         )
 
         if st.button("Conectar"):
@@ -150,7 +150,7 @@ else:
     st.markdown(
         f"""
         <div class="status-conectado">
-            🟢 Cliente conectado: {cliente.nome_cliente}
+             Cliente conectado: {cliente.nome_cliente}
         </div>
         """,
         unsafe_allow_html=True
@@ -177,7 +177,7 @@ else:
 
     # Lateral: tópicos
     with col_lateral:
-        st.subheader("📌 Tópicos")
+        st.subheader("Tópicos")
 
         novo_topico = st.text_input(
             "Criar novo tópico:",
@@ -231,7 +231,7 @@ else:
                 unsafe_allow_html=True
             )
 
-            st.subheader("💭 Mensagens")
+            st.subheader("Mensagens")
 
             mensagens = st.session_state.mensagens_por_topico.get(
                 topico_ativo, []
