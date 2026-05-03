@@ -1,4 +1,4 @@
-# Infraestrutura de Comunicação
+# SISTEMA PUBLISH/SUBSCRIBE
 
 Este projeto consiste em uma infraestrutura de comunicação composta por um **broker** e um **cliente**, funcionando de forma semelhante ao protocolo **MQTT**, utilizando o modelo **publish/subscribe**.
 
