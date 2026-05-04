@@ -60,6 +60,16 @@ st.markdown("""
         margin-bottom: 12px;
     }
 
+    .aviso-inscricao {
+        background-color: #fef3c7;
+        color: #92400e;
+        padding: 12px 16px;
+        border-radius: 12px;
+        font-weight: 600;
+        margin-top: 10px;
+        margin-bottom: 10px;
+    }
+
     div.stButton > button {
         width: 100%;
         border-radius: 10px;
@@ -93,7 +103,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# Estado do cliente
+# Estados da aplicação
 if "cliente" not in st.session_state:
     st.session_state.cliente = ClienteWeb()
 
@@ -103,13 +113,20 @@ if "topicos_interface" not in st.session_state:
 if "mensagens_por_topico" not in st.session_state:
     st.session_state.mensagens_por_topico = {}
 
+if "topicos_inscritos" not in st.session_state:
+    st.session_state.topicos_inscritos = []
+
+if "mensagens_sistema" not in st.session_state:
+    st.session_state.mensagens_sistema = []
+
+
 cliente = st.session_state.cliente
 
 
 # Cabeçalho
 st.markdown(
     """
-    <div class="titulo-principal"> Redes Chat</div>
+    <div class="titulo-principal">Redes Chat</div>
     <div class="subtitulo">
         Sistema de comunicação no modelo Publish/Subscribe com Broker e Clientes
     </div>
@@ -145,12 +162,13 @@ if not cliente.conectado:
 
 
 else:
+    # Atualiza a tela automaticamente
     st_autorefresh(interval=2000, key="atualizar_tela")
 
     st.markdown(
         f"""
         <div class="status-conectado">
-             Cliente conectado: {cliente.nome_cliente}
+            Cliente conectado: {cliente.nome_cliente}
         </div>
         """,
         unsafe_allow_html=True
@@ -160,9 +178,9 @@ else:
     if cliente.topicos:
         st.session_state.topicos_interface = cliente.topicos
 
-    # Processa mensagens recebidas
+    # Processa mensagens recebidas do cliente
     for msg in cliente.mensagens:
-        if msg.startswith("["):
+        if msg.startswith("[") and "]" in msg:
             partes = msg.split("]", 1)
             topico_msg = partes[0].replace("[", "").strip()
             conteudo = partes[1].strip()
@@ -170,8 +188,12 @@ else:
             st.session_state.mensagens_por_topico.setdefault(
                 topico_msg, []
             ).append(conteudo)
+        else:
+            st.session_state.mensagens_sistema.append(msg)
 
     cliente.mensagens.clear()
+
+    topico_ativo = None
 
     col_chat, col_lateral = st.columns([3, 1])
 
@@ -194,6 +216,10 @@ else:
                     if topico not in st.session_state.topicos_interface:
                         st.session_state.topicos_interface.append(topico)
 
+                    # Quem cria o tópico já fica inscrito nele
+                    if topico not in st.session_state.topicos_inscritos:
+                        st.session_state.topicos_inscritos.append(topico)
+
                     st.success(mensagem)
                 else:
                     st.error(mensagem)
@@ -201,8 +227,12 @@ else:
                 st.warning("Digite o nome do tópico.")
 
         if st.button("Atualizar tópicos"):
-            cliente.listar_topicos()
-            st.info("Solicitação enviada ao broker.")
+            resultado = cliente.listar_topicos()
+
+            if isinstance(resultado, tuple):
+                st.info(resultado[1])
+            else:
+                st.info("Solicitação enviada ao broker.")
 
         st.divider()
 
@@ -212,16 +242,34 @@ else:
                 st.session_state.topicos_interface
             )
 
+            inscrito = topico_ativo in st.session_state.topicos_inscritos
+
+            if inscrito:
+                st.success("Você está inscrito neste tópico.")
+            else:
+                st.warning("Você ainda não está inscrito neste tópico.")
+
             if st.button("Inscrever no tópico"):
                 sucesso, mensagem = cliente.inscrever(topico_ativo)
 
                 if sucesso:
+                    if topico_ativo not in st.session_state.topicos_inscritos:
+                        st.session_state.topicos_inscritos.append(topico_ativo)
+
                     st.success(mensagem)
+                    st.rerun()
                 else:
                     st.error(mensagem)
+
         else:
-            topico_ativo = None
             st.info("Nenhum tópico criado ainda.")
+
+        if st.session_state.mensagens_sistema:
+            st.divider()
+            st.caption("Avisos do sistema")
+
+            for aviso in st.session_state.mensagens_sistema[-3:]:
+                st.info(aviso)
 
     # Principal: chat
     with col_chat:
@@ -248,37 +296,50 @@ else:
 
             st.divider()
 
-            with st.form("formulario_mensagem", clear_on_submit=True):
-                texto = st.text_input(
-                    "Digite sua mensagem:",
-                    placeholder="Escreva uma mensagem para o tópico..."
+            inscrito = topico_ativo in st.session_state.topicos_inscritos
+
+            if not inscrito:
+                st.markdown(
+                    """
+                    <div class="aviso-inscricao">
+                        Não é possível enviar mensagem em tópicos que você não é inscrito.
+                    </div>
+                    """,
+                    unsafe_allow_html=True
                 )
 
-                enviar = st.form_submit_button("Enviar mensagem")
+            else:
+                with st.form("formulario_mensagem", clear_on_submit=True):
+                    texto = st.text_input(
+                        "Digite sua mensagem:",
+                        placeholder="Escreva uma mensagem para o tópico..."
+                    )
 
-                if enviar:
-                    if texto.strip():
-                        sucesso, mensagem = cliente.publicar(
-                            topico_ativo,
-                            texto.strip()
-                        )
+                    enviar = st.form_submit_button("Enviar mensagem")
 
-                        if sucesso:
-                            hora = datetime.now().strftime("%H:%M")
-                            mensagem_local = (
-                                f"{cliente.nome_cliente}: {texto.strip()} [{hora}]"
+                    if enviar:
+                        if texto.strip():
+                            sucesso, mensagem = cliente.publicar(
+                                topico_ativo,
+                                texto.strip()
                             )
 
-                            st.session_state.mensagens_por_topico.setdefault(
-                                topico_ativo, []
-                            ).append(mensagem_local)
+                            if sucesso:
+                                hora = datetime.now().strftime("%H:%M")
+                                mensagem_local = (
+                                    f"{cliente.nome_cliente}: {texto.strip()} [{hora}]"
+                                )
 
-                            st.success("Mensagem enviada.")
-                            st.rerun()
+                                st.session_state.mensagens_por_topico.setdefault(
+                                    topico_ativo, []
+                                ).append(mensagem_local)
+
+                                st.success("Mensagem enviada.")
+                                st.rerun()
+                            else:
+                                st.error(mensagem)
                         else:
-                            st.error(mensagem)
-                    else:
-                        st.warning("Digite uma mensagem antes de enviar.")
+                            st.warning("Digite uma mensagem antes de enviar.")
 
         else:
             st.subheader("Bem-vindo ao Redes Chat")

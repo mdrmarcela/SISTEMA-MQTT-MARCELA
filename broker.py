@@ -72,11 +72,15 @@ def tratar_cliente(conn, addr):
                         topicos.add(topico)
                         subscricoes.setdefault(topico, set())
 
+                    if id_cliente:
+                        subscricoes[topico].add(id_cliente)
+                    
                     print(f"[+] Tópico criado: {topico}")
+                    print(f"[+] {id_cliente} inscrito automaticamente em {topico}")
 
                     enviar(conn, {
                         "tipo": "resposta",
-                        "mensagem": f"Tópico '{topico}' criado com sucesso."
+                        "mensagem": f"Tópico '{topico}' criado com sucesso. Você foi inscrito automaticamente nele."
                     })
 
                 # Inscrever cliente em tópico
