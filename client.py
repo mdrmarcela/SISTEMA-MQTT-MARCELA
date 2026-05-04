@@ -33,13 +33,11 @@ class ClienteWeb:
 
             self.conectado = True
 
-            # Envia identificação do cliente para o broker
             self.enviar({
                 "tipo": "conectar",
                 "id": self.nome_cliente
             })
 
-            # Thread para ficar recebendo mensagens
             thread = threading.Thread(target=self.receber_mensagens)
             thread.daemon = True
             thread.start()
@@ -121,6 +119,18 @@ class ClienteWeb:
         })
 
         return True, f"Solicitação de inscrição no tópico '{topico}' enviada."
+
+    def desinscrever(self, topico):
+        if not self.conectado:
+            return False, "Cliente não está conectado."
+
+        self.enviar({
+            "tipo": "desinscrever",
+            "id": self.nome_cliente,
+            "topico": topico
+        })
+
+        return True, f"Solicitação para sair do tópico '{topico}' enviada."
 
     def publicar(self, topico, mensagem):
         if not self.conectado:

@@ -221,6 +221,7 @@ else:
                         st.session_state.topicos_inscritos.append(topico)
 
                     st.success(mensagem)
+                    st.rerun()
                 else:
                     st.error(mensagem)
             else:
@@ -246,20 +247,33 @@ else:
 
             if inscrito:
                 st.success("Você está inscrito neste tópico.")
+
+                if st.button("Sair do tópico"):
+                    sucesso, mensagem = cliente.desinscrever(topico_ativo)
+
+                    if sucesso:
+                        if topico_ativo in st.session_state.topicos_inscritos:
+                            st.session_state.topicos_inscritos.remove(topico_ativo)
+
+                        st.success(mensagem)
+                        st.rerun()
+                    else:
+                        st.error(mensagem)
+
             else:
                 st.warning("Você ainda não está inscrito neste tópico.")
 
-            if st.button("Inscrever no tópico"):
-                sucesso, mensagem = cliente.inscrever(topico_ativo)
+                if st.button("Inscrever no tópico"):
+                    sucesso, mensagem = cliente.inscrever(topico_ativo)
 
-                if sucesso:
-                    if topico_ativo not in st.session_state.topicos_inscritos:
-                        st.session_state.topicos_inscritos.append(topico_ativo)
+                    if sucesso:
+                        if topico_ativo not in st.session_state.topicos_inscritos:
+                            st.session_state.topicos_inscritos.append(topico_ativo)
 
-                    st.success(mensagem)
-                    st.rerun()
-                else:
-                    st.error(mensagem)
+                        st.success(mensagem)
+                        st.rerun()
+                    else:
+                        st.error(mensagem)
 
         else:
             st.info("Nenhum tópico criado ainda.")

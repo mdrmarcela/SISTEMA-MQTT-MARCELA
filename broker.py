@@ -50,8 +50,6 @@ def tratar_cliente(conn, addr):
                 pacote = json.loads(linha)
                 tipo = pacote.get("tipo")
 
-                print(f"[DEBUG] Pacote recebido: {pacote}")
-
                 # Cliente informa seu nome/id
                 if tipo == "conectar":
                     id_cliente = pacote.get("id")
@@ -104,6 +102,32 @@ def tratar_cliente(conn, addr):
                         "mensagem": f"Você se inscreveu no tópico '{topico}'."
                     })
 
+                # Desinscrever cliente de um tópico
+                elif tipo == "desinscrever":
+                    topico = pacote.get("topico")
+
+                    with lock:
+                        inscrito = (
+                            topico in subscricoes
+                            and id_cliente in subscricoes[topico]
+                        )
+
+                        if inscrito:
+                            subscricoes[topico].remove(id_cliente)
+
+                    if inscrito:
+                        print(f"[-] {id_cliente} saiu do tópico {topico}")
+
+                        enviar(conn, {
+                            "tipo": "resposta",
+                            "mensagem": f"Você saiu do tópico '{topico}'."
+                        })
+                    else:
+                        enviar(conn, {
+                            "tipo": "erro",
+                            "mensagem": f"Você não está inscrito no tópico '{topico}'."
+                        })
+
                 # Publicar mensagem
                 elif tipo == "publicar":
                     topico = pacote.get("topico")
@@ -114,9 +138,7 @@ def tratar_cliente(conn, addr):
 
                     # Bloqueia envio se o cliente não estiver inscrito no tópico
                     if id_cliente not in inscritos:
-                        print(
-                            f"[!] {id_cliente} tentou publicar em {topico} sem estar inscrito"
-                        )
+                        print(f"[!] {id_cliente} tentou publicar em {topico} sem estar inscrito")
 
                         enviar(conn, {
                             "tipo": "erro",
@@ -126,7 +148,6 @@ def tratar_cliente(conn, addr):
                         continue
 
                     print(f"[{topico}] {id_cliente}: {mensagem}")
-                    print(f"[DEBUG] Inscritos em {topico}: {inscritos}")
 
                     # Envia a mensagem para todos os inscritos, menos para quem publicou
                     for destinatario in inscritos:
@@ -159,8 +180,6 @@ def tratar_cliente(conn, addr):
                         "tipo": "topicos",
                         "topicos": lista
                     })
-
-                    print(f"[DEBUG] Lista de tópicos enviada para {id_cliente}: {lista}")
 
                 else:
                     enviar(conn, {
