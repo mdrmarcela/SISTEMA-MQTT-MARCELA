@@ -123,7 +123,7 @@ if not cliente.conectado:
     col1, col2, col3 = st.columns([1, 2, 1])
 
     with col2:
-        st.subheader("🔌 Conectar ao Broker")
+        st.subheader("Conectar ao Broker")
         st.write("Digite um nome para identificar este cliente na rede.")
 
         nome = st.text_input(
@@ -240,7 +240,7 @@ else:
             if mensagens:
                 for mensagem in mensagens:
                     st.markdown(
-                        f'<div class="mensagem">💬 {mensagem}</div>',
+                        f'<div class="mensagem">{mensagem}</div>',
                         unsafe_allow_html=True
                     )
             else:
