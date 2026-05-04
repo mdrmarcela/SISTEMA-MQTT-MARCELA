@@ -129,11 +129,22 @@ def tratar_cliente(conn, addr):
                         })
 
                 # Publicar mensagem
+                                # Publicar mensagem
                 elif tipo == "publicar":
                     topico = pacote.get("topico")
                     mensagem = pacote.get("mensagem")
 
                     with lock:
+                        # Verifica se o tópico existe
+                        if topico not in topicos:
+                            enviar(conn, {
+                                "tipo": "erro",
+                                "mensagem": f"Não é possível enviar mensagem. O tópico '{topico}' não existe."
+                            })
+
+                            print(f"[!] {id_cliente} tentou publicar em tópico inexistente: {topico}")
+                            continue
+
                         inscritos = subscricoes.get(topico, set()).copy()
 
                     # Bloqueia envio se o cliente não estiver inscrito no tópico
