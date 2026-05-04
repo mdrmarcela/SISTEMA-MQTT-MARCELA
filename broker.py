@@ -50,6 +50,8 @@ def tratar_cliente(conn, addr):
                 pacote = json.loads(linha)
                 tipo = pacote.get("tipo")
 
+                print(f"[DEBUG] Pacote recebido: {pacote}")
+
                 # Cliente informa seu nome/id
                 if tipo == "conectar":
                     id_cliente = pacote.get("id")
@@ -72,9 +74,10 @@ def tratar_cliente(conn, addr):
                         topicos.add(topico)
                         subscricoes.setdefault(topico, set())
 
-                    if id_cliente:
-                        subscricoes[topico].add(id_cliente)
-                    
+                        # Quem cria o tópico já fica inscrito automaticamente
+                        if id_cliente:
+                            subscricoes[topico].add(id_cliente)
+
                     print(f"[+] Tópico criado: {topico}")
                     print(f"[+] {id_cliente} inscrito automaticamente em {topico}")
 
@@ -106,11 +109,26 @@ def tratar_cliente(conn, addr):
                     topico = pacote.get("topico")
                     mensagem = pacote.get("mensagem")
 
-                    print(f"[{topico}] {id_cliente}: {mensagem}")
-
                     with lock:
                         inscritos = subscricoes.get(topico, set()).copy()
 
+                    # Bloqueia envio se o cliente não estiver inscrito no tópico
+                    if id_cliente not in inscritos:
+                        print(
+                            f"[!] {id_cliente} tentou publicar em {topico} sem estar inscrito"
+                        )
+
+                        enviar(conn, {
+                            "tipo": "erro",
+                            "mensagem": f"Não é possível enviar mensagem em '{topico}', pois você não está inscrito nesse tópico."
+                        })
+
+                        continue
+
+                    print(f"[{topico}] {id_cliente}: {mensagem}")
+                    print(f"[DEBUG] Inscritos em {topico}: {inscritos}")
+
+                    # Envia a mensagem para todos os inscritos, menos para quem publicou
                     for destinatario in inscritos:
                         if destinatario == id_cliente:
                             continue
@@ -124,6 +142,8 @@ def tratar_cliente(conn, addr):
                                 "remetente": id_cliente,
                                 "mensagem": mensagem
                             })
+
+                            print(f"[{topico}] {id_cliente} → {destinatario}")
 
                     enviar(conn, {
                         "tipo": "resposta",
@@ -139,6 +159,8 @@ def tratar_cliente(conn, addr):
                         "tipo": "topicos",
                         "topicos": lista
                     })
+
+                    print(f"[DEBUG] Lista de tópicos enviada para {id_cliente}: {lista}")
 
                 else:
                     enviar(conn, {
