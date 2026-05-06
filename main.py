@@ -122,6 +122,10 @@ if "mensagens_sistema" not in st.session_state:
 
 cliente = st.session_state.cliente
 
+# Garante que o atributo exista no cliente
+if not hasattr(cliente, "topicos_desinscritos"):
+    cliente.topicos_desinscritos = []
+
 
 # Cabeçalho
 st.markdown(
@@ -162,7 +166,6 @@ if not cliente.conectado:
 
 
 else:
-    # Atualiza a tela automaticamente
     st_autorefresh(interval=2000, key="atualizar_tela")
 
     st.markdown(
@@ -192,6 +195,13 @@ else:
             st.session_state.mensagens_sistema.append(msg)
 
     cliente.mensagens.clear()
+
+    # Atualiza a interface apenas quando o broker confirmar que saiu do tópico
+    for topico in cliente.topicos_desinscritos:
+        if topico in st.session_state.topicos_inscritos:
+            st.session_state.topicos_inscritos.remove(topico)
+
+    cliente.topicos_desinscritos.clear()
 
     topico_ativo = None
 
@@ -252,11 +262,7 @@ else:
                     sucesso, mensagem = cliente.desinscrever(topico_ativo)
 
                     if sucesso:
-                        if topico_ativo in st.session_state.topicos_inscritos:
-                            st.session_state.topicos_inscritos.remove(topico_ativo)
-
-                        st.success(mensagem)
-                        st.rerun()
+                        st.info("Solicitação para sair enviada ao broker.")
                     else:
                         st.error(mensagem)
 
