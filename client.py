@@ -8,9 +8,9 @@ BROKER_PORT = 1883
 
 class ClienteWeb:
     def __init__(self):
-        self.socket = None #socket do cliente para se comunicar com o broker
+        self.socket = None # socket do cliente para se comunicar com o broker
         self.nome_cliente = ""
-        self.conectado = False #indica se o cliente está conectado ao broker
+        self.conectado = False # indica se o cliente está conectado ao broker
         self.mensagens = []
         self.topicos = []
         self.topicos_desinscritos = []
@@ -31,13 +31,14 @@ class ClienteWeb:
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.socket.connect((BROKER_HOST, BROKER_PORT)) #conecta ao broker
 
-            self.conectado = True #troca o estado do cliente para conectado
+            self.conectado = True # troca o estado do cliente para conectado
 
-            self.enviar({
+            self.enviar({ # avisa ao broker que o cliente foi conetacdo
                 "tipo": "conectar",
                 "id": self.nome_cliente
             })
 
+            # Cria uma thread para receber mensagens do broker
             thread = threading.Thread(target=self.receber_mensagens)
             thread.daemon = True
             thread.start()
@@ -45,7 +46,7 @@ class ClienteWeb:
             return True, f"Cliente {self.nome_cliente} conectado com sucesso."
 
         except Exception as e:
-            self.conectado = False
+            self.conectado = False # Se der erro, o cliente é desconectado e troca o estado dele
             return False, f"Erro ao conectar: {e}"
 
     def receber_mensagens(self):
@@ -68,6 +69,7 @@ class ClienteWeb:
                     tipo = pacote.get("tipo")
 
                     if tipo == "mensagem":
+                        # Mensagem recebida de um tópico ao qual o cliente está inscrito
                         topico = pacote.get("topico")
                         remetente = pacote.get("remetente")
                         mensagem = pacote.get("mensagem")
@@ -83,10 +85,10 @@ class ClienteWeb:
                         texto = f"Sistema: {mensagem} [{hora}]"
                         self.mensagens.append(texto)
 
-                    elif tipo == "topicos":
+                    elif tipo == "topicos": # Atualiza a lista de tópicos disponíveis no broker
                         self.topicos = pacote.get("topicos", [])
 
-                    elif tipo == "desinscrito":
+                    elif tipo == "desinscrito": # Confirma que o cliente foi desinscrito de um tópico
                         topico = pacote.get("topico")
                         mensagem = pacote.get("mensagem")
                         hora = datetime.now().strftime("%H:%M")
@@ -102,7 +104,7 @@ class ClienteWeb:
                 self.mensagens.append(f"Erro ao receber mensagem: {e}")
                 break
 
-        self.conectado = False
+        self.conectado = False # Marca o cliente como desconectado se sair do loop
 
     def criar_topico(self, topico):
         if not self.conectado:
