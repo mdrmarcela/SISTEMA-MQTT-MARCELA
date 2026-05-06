@@ -209,8 +209,11 @@ def tratar_cliente(conn, addr):
                         "mensagem": "Comando desconhecido."
                     })
 
+    except (ConnectionResetError, ConnectionAbortedError, OSError):
+        print(f"[-] Conexão encerrada com {endereco}")
+
     except Exception as e:
-        print(f"[!] Erro com cliente {addr}: {e}")
+        print(f"[!] Erro com cliente {endereco}: {e}")
 
     finally:
         if id_cliente:
