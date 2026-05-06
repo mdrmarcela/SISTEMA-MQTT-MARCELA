@@ -14,6 +14,7 @@ class ClienteWeb:
         self.conectado = False
         self.mensagens = []
         self.topicos = []
+        self.topicos_desinscritos = []
         self.buffer = ""
 
     def enviar(self, pacote):
@@ -85,6 +86,14 @@ class ClienteWeb:
 
                     elif tipo == "topicos":
                         self.topicos = pacote.get("topicos", [])
+
+                    elif tipo == "desinscrito":
+                        topico = pacote.get("topico")
+                        mensagem = pacote.get("mensagem")
+                        hora = datetime.now().strftime("%H:%M")
+
+                        self.topicos_desinscritos.append(topico)
+                        self.mensagens.append(f"Sistema: {mensagem} [{hora}]")
 
                     elif tipo == "erro":
                         mensagem = pacote.get("mensagem")
