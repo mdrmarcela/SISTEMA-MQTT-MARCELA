@@ -210,10 +210,11 @@ def tratar_cliente(conn, addr):
                     })
 
     except (ConnectionResetError, ConnectionAbortedError, OSError):
-        print(f"[-] Conexão encerrada com {endereco}")
+        pass
 
     except Exception as e:
-        print(f"[!] Erro com cliente {endereco}: {e}")
+        nome = id_cliente if id_cliente else addr
+        print(f"[!] Erro com cliente {nome}: {e}")
 
     finally:
         if id_cliente:
@@ -223,9 +224,12 @@ def tratar_cliente(conn, addr):
                 for topico in subscricoes:
                     subscricoes[topico].discard(id_cliente)
 
-            print(f"[-] Cliente desconectado: {id_cliente}")
+            print(f"[-] Cliente {id_cliente} encerrou conexão")
 
-        conn.close()
+        else:
+            print(f"[-] Cliente {addr} encerrou conexão")
+
+    conn.close()
 
 
 def iniciar_broker():

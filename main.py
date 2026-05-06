@@ -9,7 +9,6 @@ st.set_page_config(
     layout="centered"
 )
 
-
 # -----------------------------
 # Estados da aplicação
 # -----------------------------
