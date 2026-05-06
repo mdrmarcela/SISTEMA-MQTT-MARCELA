@@ -102,34 +102,46 @@ def tratar_cliente(conn, addr):
                         "mensagem": f"Você se inscreveu no tópico '{topico}'."
                     })
 
-                # Desinscrever cliente de um tópico
+                                # Desinscrever cliente de um tópico
                 elif tipo == "desinscrever":
                     topico = pacote.get("topico")
 
                     with lock:
-                        inscrito = (
-                            topico in subscricoes
-                            and id_cliente in subscricoes[topico]
-                        )
+                        inscritos = subscricoes.get(topico, set())
 
-                        if inscrito:
-                            subscricoes[topico].remove(id_cliente)
+                        if topico not in subscricoes:
+                            enviar(conn, {
+                                "tipo": "erro",
+                                "mensagem": f"O tópico '{topico}' não existe."
+                            })
+                            continue
 
-                    if inscrito:
-                        print(f"[-] {id_cliente} saiu do tópico {topico}")
+                        if id_cliente not in inscritos:
+                            enviar(conn, {
+                                "tipo": "erro",
+                                "mensagem": f"Você não está inscrito no tópico '{topico}'."
+                            })
+                            continue
 
-                        enviar(conn, {
-                            "tipo": "resposta",
-                            "mensagem": f"Você saiu do tópico '{topico}'."
-                        })
-                    else:
-                        enviar(conn, {
-                            "tipo": "erro",
-                            "mensagem": f"Você não está inscrito no tópico '{topico}'."
-                        })
+                        if len(inscritos) == 1:
+                            enviar(conn, {
+                                "tipo": "erro",
+                                "mensagem": f"Não é possível sair do tópico '{topico}', pois você é o último inscrito nele."
+                            })
 
+                            print(f"[!] {id_cliente} tentou sair de {topico}, mas é o último inscrito")
+                            continue
+
+                        subscricoes[topico].remove(id_cliente)
+
+                    print(f"[-] {id_cliente} saiu do tópico {topico}")
+
+                    enviar(conn, {
+                        "tipo": "desinscrito",
+                        "topico": topico,
+                        "mensagem": f"Você saiu do tópico '{topico}'."
+                    })
                 # Publicar mensagem
-                                # Publicar mensagem
                 elif tipo == "publicar":
                     topico = pacote.get("topico")
                     mensagem = pacote.get("mensagem")
