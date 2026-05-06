@@ -6,12 +6,11 @@ from datetime import datetime
 BROKER_HOST = "localhost"
 BROKER_PORT = 1883
 
-
 class ClienteWeb:
     def __init__(self):
-        self.socket = None
+        self.socket = None #socket do cliente para se comunicar com o broker
         self.nome_cliente = ""
-        self.conectado = False
+        self.conectado = False #indica se o cliente está conectado ao broker
         self.mensagens = []
         self.topicos = []
         self.topicos_desinscritos = []
@@ -30,9 +29,9 @@ class ClienteWeb:
             self.nome_cliente = nome_cliente
 
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.socket.connect((BROKER_HOST, BROKER_PORT))
+            self.socket.connect((BROKER_HOST, BROKER_PORT)) #conecta ao broker
 
-            self.conectado = True
+            self.conectado = True #troca o estado do cliente para conectado
 
             self.enviar({
                 "tipo": "conectar",

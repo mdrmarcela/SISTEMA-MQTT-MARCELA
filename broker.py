@@ -11,7 +11,6 @@ subscricoes = {}          # topico -> conjunto de clientes inscritos
 
 lock = threading.Lock()
 
-
 def enviar(conn, pacote):
     """
     Envia um pacote JSON para o cliente.
@@ -50,7 +49,7 @@ def tratar_cliente(conn, addr):
                 pacote = json.loads(linha)
                 tipo = pacote.get("tipo")
 
-                # Cliente informa seu nome/id
+                # Cliente informa seu nome
                 if tipo == "conectar":
                     id_cliente = pacote.get("id")
 
@@ -102,7 +101,7 @@ def tratar_cliente(conn, addr):
                         "mensagem": f"Você se inscreveu no tópico '{topico}'."
                     })
 
-                                # Desinscrever cliente de um tópico
+                # Desinscrever cliente de um tópico
                 elif tipo == "desinscrever":
                     topico = pacote.get("topico")
 
