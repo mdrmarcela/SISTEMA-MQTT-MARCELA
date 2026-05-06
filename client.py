@@ -169,5 +169,5 @@ class ClienteWeb:
     def desconectar(self):
         self.conectado = False
 
-        if self.socket:
+        if self.socket: #Fecha o socket do cliente para se desconectar do broker
             self.socket.close()
