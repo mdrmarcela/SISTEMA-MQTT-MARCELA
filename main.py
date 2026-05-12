@@ -3,7 +3,6 @@ from client import ClienteWeb
 from streamlit_autorefresh import st_autorefresh
 from datetime import datetime
 
-
 st.set_page_config(
     page_title="Redes Chat",
     layout="centered"

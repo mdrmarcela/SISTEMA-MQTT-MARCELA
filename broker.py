@@ -5,9 +5,10 @@ import json
 BROKER_HOST = "0.0.0.0"
 BROKER_PORT = 1883
 
-clientes_conectados = {}  # id_cliente -> conexão socket
+clientes_conectados = {}  # id_cliente: conexão socket
 topicos = set()           # conjunto de tópicos criados
-subscricoes = {}          # topico -> conjunto de clientes inscritos
+subscricoes = {}          # topico: conjunto de clientes inscritos
+mensagens_pendentes = {}  # guarda mensagens para clientes que estão offline
 
 lock = threading.Lock()
 
@@ -56,12 +57,23 @@ def tratar_cliente(conn, addr):
                     with lock:
                         clientes_conectados[id_cliente] = conn
 
+                        #Pega as mensagens pendentes para esse cliente, se houver
+                        pendentes = mensagens_pendentes.pop(id_cliente, [])
+
+
                     print(f"[✓] Cliente conectado: {id_cliente}")
 
                     enviar(conn, {
                         "tipo": "resposta",
                         "mensagem": f"Cliente {id_cliente} conectado com sucesso."
                     })
+
+                     # Envia as mensagens que chegaram enquanto o cliente estava offline
+                    if pendentes:
+                        print(f"[+] Enviando {len(pendentes)} mensagem(ns) pendente(s) para {id_cliente}")
+
+                        for mensagem_pendente in pendentes:
+                            enviar(conn, mensagem_pendente)
 
                 # Criar tópico
                 elif tipo == "criar_topico":
