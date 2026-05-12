@@ -8,9 +8,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# -----------------------------
 # Estados da aplicação
-# -----------------------------
 if "cliente" not in st.session_state:
     st.session_state.cliente = ClienteWeb()
 
@@ -31,16 +29,11 @@ if not hasattr(cliente, "topicos_desinscritos"):
     cliente.topicos_desinscritos = []
 
 
-# -----------------------------
 # Título
-# -----------------------------
 st.title("Redes Chat")
 st.caption("Sistema Publish/Subscribe com Broker e Clientes")
 
-
-# -----------------------------
 # Tela de conexão
-# -----------------------------
 if not cliente.conectado:
     st.subheader("Conectar ao broker")
 
@@ -64,21 +57,14 @@ if not cliente.conectado:
 # Atualiza a tela automaticamente
 st_autorefresh(interval=2000, key="atualizar_tela")
 
-
-# -----------------------------
 # Cliente conectado
-# -----------------------------
 st.success(f"Conectado como: {cliente.nome_cliente}")
-
 
 # Atualiza lista de tópicos recebida do broker
 if cliente.topicos:
     st.session_state.topicos = cliente.topicos
 
-
-# -----------------------------
 # Processa mensagens recebidas
-# -----------------------------
 for msg in cliente.mensagens:
     if msg.startswith("[") and "]" in msg:
         partes = msg.split("]", 1)
@@ -93,20 +79,14 @@ for msg in cliente.mensagens:
 # Limpa as mensagens já processadas
 cliente.mensagens.clear()
 
-
-# -----------------------------
 # Processa tópicos desinscritos
-# -----------------------------
 for topico in cliente.topicos_desinscritos:
     if topico in st.session_state.topicos_inscritos:
         st.session_state.topicos_inscritos.remove(topico)
 
 cliente.topicos_desinscritos.clear()
 
-
-# -----------------------------
 # Menu lateral
-# -----------------------------
 topico_ativo = None
 
 with st.sidebar:
@@ -183,9 +163,7 @@ with st.sidebar:
         st.rerun()
 
 
-# -----------------------------
 # Área principal do chat
-# -----------------------------
 if not topico_ativo:
     st.info("Crie ou escolha um tópico para começar.")
 
