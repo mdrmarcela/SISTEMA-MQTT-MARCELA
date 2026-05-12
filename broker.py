@@ -5,12 +5,19 @@ import json
 BROKER_HOST = "0.0.0.0"
 BROKER_PORT = 1883
 
-clientes_conectados = {}  # id_cliente: conexão socket
-topicos = set()           # conjunto de tópicos criados
-subscricoes = {}          # topico: conjunto de clientes inscritos
-mensagens_pendentes = {}  # guarda mensagens para clientes que estão offline
+clientes_conectados = {}   # id_cliente -> conexão socket
+topicos = set()            # conjunto de tópicos criados
+subscricoes = {}           # topico -> conjunto de clientes inscritos
+
+# Guarda mensagens para clientes que estão offline
+# Exemplo:
+# mensagens_pendentes["João"] = [
+#     {"tipo": "mensagem", "topico": "avisos", "remetente": "Marcela", "mensagem": "Oi"}
+# ]
+mensagens_pendentes = {}
 
 lock = threading.Lock()
+
 
 def enviar(conn, pacote):
     """
@@ -57,9 +64,8 @@ def tratar_cliente(conn, addr):
                     with lock:
                         clientes_conectados[id_cliente] = conn
 
-                        #Pega as mensagens pendentes para esse cliente, se houver
+                        # Pega as mensagens que estavam guardadas para esse cliente
                         pendentes = mensagens_pendentes.pop(id_cliente, [])
-
 
                     print(f"[✓] Cliente conectado: {id_cliente}")
 
@@ -68,7 +74,7 @@ def tratar_cliente(conn, addr):
                         "mensagem": f"Cliente {id_cliente} conectado com sucesso."
                     })
 
-                     # Envia as mensagens que chegaram enquanto o cliente estava offline
+                    # Envia as mensagens que chegaram enquanto o cliente estava offline
                     if pendentes:
                         print(f"[+] Enviando {len(pendentes)} mensagem(ns) pendente(s) para {id_cliente}")
 
@@ -152,6 +158,7 @@ def tratar_cliente(conn, addr):
                         "topico": topico,
                         "mensagem": f"Você saiu do tópico '{topico}'."
                     })
+
                 # Publicar mensagem
                 elif tipo == "publicar":
                     topico = pacote.get("topico")
@@ -183,22 +190,41 @@ def tratar_cliente(conn, addr):
 
                     print(f"[{topico}] {id_cliente}: {mensagem}")
 
-                    # Envia a mensagem para todos os inscritos, menos para quem publicou
+                    pacote_mensagem = {
+                        "tipo": "mensagem",
+                        "topico": topico,
+                        "remetente": id_cliente,
+                        "mensagem": mensagem
+                    }
+
+                    # Envia para todos os inscritos, menos para quem publicou
                     for destinatario in inscritos:
                         if destinatario == id_cliente:
                             continue
 
-                        conn_destino = clientes_conectados.get(destinatario)
+                        with lock:
+                            conn_destino = clientes_conectados.get(destinatario)
 
+                        # Se o destinatário estiver online, envia na hora
                         if conn_destino:
-                            enviar(conn_destino, {
-                                "tipo": "mensagem",
-                                "topico": topico,
-                                "remetente": id_cliente,
-                                "mensagem": mensagem
-                            })
+                            try:
+                                enviar(conn_destino, pacote_mensagem)
+                                print(f"[{topico}] {id_cliente} → {destinatario}")
 
-                            print(f"[{topico}] {id_cliente} → {destinatario}")
+                            except (ConnectionResetError, ConnectionAbortedError, OSError):
+                                # Se deu erro ao enviar, considera que ele está offline
+                                with lock:
+                                    clientes_conectados.pop(destinatario, None)
+                                    mensagens_pendentes.setdefault(destinatario, []).append(pacote_mensagem)
+
+                                print(f"[!] {destinatario} estava desconectado. Mensagem guardada.")
+
+                        # Se o destinatário estiver offline, guarda para depois
+                        else:
+                            with lock:
+                                mensagens_pendentes.setdefault(destinatario, []).append(pacote_mensagem)
+
+                            print(f"[+] {destinatario} está offline. Mensagem guardada.")
 
                     enviar(conn, {
                         "tipo": "resposta",
@@ -231,17 +257,19 @@ def tratar_cliente(conn, addr):
     finally:
         if id_cliente:
             with lock:
+                # Remove apenas da lista de clientes online
                 clientes_conectados.pop(id_cliente, None)
 
-                for topico in subscricoes:
-                    subscricoes[topico].discard(id_cliente)
+                # IMPORTANTE:
+                # Não remove o cliente das subscrições.
+                # Assim, ele continua inscrito no tópico mesmo offline.
 
             print(f"[-] Cliente {id_cliente} encerrou conexão")
 
         else:
             print(f"[-] Cliente {addr} encerrou conexão")
 
-    conn.close()
+        conn.close()
 
 
 def iniciar_broker():
