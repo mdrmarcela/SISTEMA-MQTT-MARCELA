@@ -8,9 +8,16 @@ BROKER_PORT = 1883
 clientes_conectados = {}   # id_cliente -> conexão socket
 topicos = set()            # conjunto de tópicos criados
 subscricoes = {}           # topico -> conjunto de clientes inscritos
-mensagens_pendentes = {}   # id_cliente -> lista de mensagens pendentes
+
+# Guarda mensagens para clientes que estão offline
+# Exemplo:
+# mensagens_pendentes["João"] = [
+#     {"tipo": "mensagem", "topico": "avisos", "remetente": "Marcela", "mensagem": "Oi"}
+# ]
+mensagens_pendentes = {} # id_cliente -> lista de mensagens pendentes
 
 lock = threading.Lock()
+
 
 def enviar(conn, pacote):
     """
@@ -19,6 +26,7 @@ def enviar(conn, pacote):
     """
     mensagem = json.dumps(pacote, ensure_ascii=False) + "\n"
     conn.sendall(mensagem.encode("utf-8"))
+
 
 def tratar_cliente(conn, addr):
     id_cliente = None
