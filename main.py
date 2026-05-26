@@ -28,7 +28,6 @@ cliente = st.session_state.cliente
 if not hasattr(cliente, "topicos_desinscritos"):
     cliente.topicos_desinscritos = []
 
-
 # Título
 st.title("Redes Chat")
 st.caption("Sistema Publish/Subscribe com Broker e Clientes")
@@ -52,7 +51,6 @@ if not cliente.conectado:
             st.warning("Digite um nome válido.")
 
     st.stop()
-
 
 # Atualiza a tela automaticamente
 st_autorefresh(interval=2000, key="atualizar_tela")
