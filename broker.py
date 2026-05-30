@@ -13,9 +13,10 @@ CHAVE_SERVIDOR = os.path.join("certs", "servidor", "servidor.key")
 clientes_conectados = {}   # id_cliente -> conexão socket
 topicos = set()            # conjunto de tópicos criados
 subscricoes = {}           # topico -> conjunto de clientes inscritos
-mensagens_pendentes = {} # id_cliente -> lista de mensagens pendentes
+mensagens_pendentes = {}   # id_cliente -> lista de mensagens pendentes
 
 lock = threading.Lock()
+
 
 def enviar(conn, pacote):
     """
@@ -25,12 +26,31 @@ def enviar(conn, pacote):
     mensagem = json.dumps(pacote, ensure_ascii=False) + "\n"
     conn.sendall(mensagem.encode("utf-8"))
 
+
+def obter_common_name(conn):
+    """
+    Pega o Common Name do certificado do cliente.
+    Exemplo: CN=cliente1
+    """
+    certificado = conn.getpeercert()
+
+    if not certificado:
+        return None
+
+    for grupo in certificado.get("subject", []):
+        for chave, valor in grupo:
+            if chave == "commonName":
+                return valor
+
+    return None
+
+
 def tratar_cliente(conn, addr):
     id_cliente = None
     buffer = ""
 
     try:
-        print(f"[+] Nova conexão: {addr}")
+        print(f"[+] Nova conexão SSL: {addr}")
 
         enviar(conn, {
             "tipo": "info",
@@ -56,27 +76,59 @@ def tratar_cliente(conn, addr):
 
                 # Cliente informa seu nome
                 if tipo == "conectar":
-                    id_cliente = pacote.get("id")
+                    nome_informado = pacote.get("id")
+                    cn_certificado = obter_common_name(conn)
+
+                    if not nome_informado:
+                        enviar(conn, {
+                            "tipo": "erro",
+                            "mensagem": "Autenticação falhou. Nome do cliente não informado."
+                        })
+                        print("[!] Cliente tentou conectar sem informar nome.")
+                        return
+
+                    if not cn_certificado:
+                        enviar(conn, {
+                            "tipo": "erro",
+                            "mensagem": "Autenticação falhou. Certificado do cliente não encontrado."
+                        })
+                        print("[!] Cliente sem certificado.")
+                        return
+
+                    if nome_informado != cn_certificado:
+                        enviar(conn, {
+                            "tipo": "erro",
+                            "mensagem": "Autenticação falhou. Nome do cliente não corresponde ao certificado."
+                        })
+                        print(
+                            f"[!] Nome informado '{nome_informado}' diferente do certificado '{cn_certificado}'"
+                        )
+                        return
+
+                    id_cliente = nome_informado
 
                     with lock:
                         clientes_conectados[id_cliente] = conn
-
-                        # Pega as mensagens que estavam guardadas para esse cliente
                         pendentes = mensagens_pendentes.pop(id_cliente, [])
 
-                    print(f"[✓] Cliente conectado: {id_cliente}")
+                    print(f"[✓] Cliente autenticado: {id_cliente}")
 
                     enviar(conn, {
                         "tipo": "resposta",
-                        "mensagem": f"Cliente {id_cliente} conectado com sucesso."
+                        "mensagem": f"Cliente {id_cliente} autenticado e conectado com sucesso."
                     })
 
-                    # Envia as mensagens que chegaram enquanto o cliente estava offline
                     if pendentes:
                         print(f"[+] Enviando {len(pendentes)} mensagem(ns) pendente(s) para {id_cliente}")
 
                         for mensagem_pendente in pendentes:
                             enviar(conn, mensagem_pendente)
+
+                elif not id_cliente:
+                    enviar(conn, {
+                        "tipo": "erro",
+                        "mensagem": "Cliente ainda não autenticado."
+                    })
 
                 # Criar tópico
                 elif tipo == "criar_topico":
@@ -86,7 +138,6 @@ def tratar_cliente(conn, addr):
                         topicos.add(topico)
                         subscricoes.setdefault(topico, set())
 
-                        # Quem cria o tópico já fica inscrito automaticamente
                         if id_cliente:
                             subscricoes[topico].add(id_cliente)
 
@@ -162,7 +213,6 @@ def tratar_cliente(conn, addr):
                     mensagem = pacote.get("mensagem")
 
                     with lock:
-                        # Verifica se o tópico existe
                         if topico not in topicos:
                             enviar(conn, {
                                 "tipo": "erro",
@@ -174,7 +224,6 @@ def tratar_cliente(conn, addr):
 
                         inscritos = subscricoes.get(topico, set()).copy()
 
-                    # Bloqueia envio se o cliente não estiver inscrito no tópico
                     if id_cliente not in inscritos:
                         print(f"[!] {id_cliente} tentou publicar em {topico} sem estar inscrito")
 
@@ -194,7 +243,6 @@ def tratar_cliente(conn, addr):
                         "mensagem": mensagem
                     }
 
-                    # Envia para todos os inscritos, menos para quem publicou
                     for destinatario in inscritos:
                         if destinatario == id_cliente:
                             continue
@@ -202,21 +250,18 @@ def tratar_cliente(conn, addr):
                         with lock:
                             conn_destino = clientes_conectados.get(destinatario)
 
-                        # Se o destinatário estiver online, envia na hora
                         if conn_destino:
                             try:
                                 enviar(conn_destino, pacote_mensagem)
                                 print(f"[{topico}] {id_cliente} → {destinatario}")
 
                             except (ConnectionResetError, ConnectionAbortedError, OSError):
-                                # Se deu erro ao enviar, considera que ele está offline
                                 with lock:
                                     clientes_conectados.pop(destinatario, None)
                                     mensagens_pendentes.setdefault(destinatario, []).append(pacote_mensagem)
 
                                 print(f"[!] {destinatario} estava desconectado. Mensagem guardada.")
 
-                        # Se o destinatário estiver offline, guarda para depois
                         else:
                             with lock:
                                 mensagens_pendentes.setdefault(destinatario, []).append(pacote_mensagem)
@@ -254,8 +299,8 @@ def tratar_cliente(conn, addr):
     finally:
         if id_cliente:
             with lock:
-                # Remove apenas da lista de clientes online
                 clientes_conectados.pop(id_cliente, None)
+
             print(f"[-] Cliente {id_cliente} encerrou conexão")
 
         else:
@@ -265,19 +310,59 @@ def tratar_cliente(conn, addr):
 
 
 def iniciar_broker():
+    if not os.path.exists(CERT_SERVIDOR):
+        print(f"[!] Certificado do servidor não encontrado: {CERT_SERVIDOR}")
+        return
+
+    if not os.path.exists(CHAVE_SERVIDOR):
+        print(f"[!] Chave privada do servidor não encontrada: {CHAVE_SERVIDOR}")
+        return
+
+    contexto_ssl = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+
+    contexto_ssl.load_cert_chain(
+        certfile=CERT_SERVIDOR,
+        keyfile=CHAVE_SERVIDOR
+    )
+
+    contexto_ssl.load_verify_locations(
+        cafile=CERT_SERVIDOR
+    )
+
+    contexto_ssl.verify_mode = ssl.CERT_REQUIRED
+
     servidor = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     servidor.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
     servidor.bind((BROKER_HOST, BROKER_PORT))
     servidor.listen(5)
 
-    print(f"[*] Broker ouvindo em {BROKER_HOST}:{BROKER_PORT}")
+    print(f"[*] Broker com autenticação ouvindo em {BROKER_HOST}:{BROKER_PORT}")
 
     while True:
-        conn, addr = servidor.accept()
-        thread = threading.Thread(target=tratar_cliente, args=(conn, addr))
+        conn_original, addr = servidor.accept()
+
+        try:
+            conn_segura = contexto_ssl.wrap_socket(
+                conn_original,
+                server_side=True
+            )
+
+            print(f"[✓] Conexão SSL aceita de {addr}")
+
+        except ssl.SSLError as e:
+            print(f"[!] Falha na autenticação SSL de {addr}: {e}")
+            conn_original.close()
+            continue
+
+        thread = threading.Thread(
+            target=tratar_cliente,
+            args=(conn_segura, addr)
+        )
+
         thread.daemon = True
         thread.start()
+
 
 if __name__ == "__main__":
     iniciar_broker()
