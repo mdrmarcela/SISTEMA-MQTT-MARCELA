@@ -10,7 +10,6 @@ BROKER_PORT = 1883
 
 CERT_SERVIDOR = os.path.join("certs", "servidor", "servidor.crt")
 
-
 class ClienteWeb:
     def __init__(self):
         self.socket = None
