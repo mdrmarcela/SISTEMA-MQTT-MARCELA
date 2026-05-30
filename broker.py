@@ -17,7 +17,6 @@ mensagens_pendentes = {}   # id_cliente -> lista de mensagens pendentes
 
 lock = threading.Lock()
 
-
 def enviar(conn, pacote):
     """
     Envia um pacote JSON para o cliente.
