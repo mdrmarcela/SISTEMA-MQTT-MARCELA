@@ -1,9 +1,14 @@
 import socket
 import threading
 import json
+import ssl
+import os
 
 BROKER_HOST = "0.0.0.0"
 BROKER_PORT = 1883
+
+CERT_SERVIDOR = os.path.join("certs", "servidor", "servidor.crt")
+CHAVE_SERVIDOR = os.path.join("certs", "servidor", "servidor.key")
 
 clientes_conectados = {}   # id_cliente -> conexão socket
 topicos = set()            # conjunto de tópicos criados
