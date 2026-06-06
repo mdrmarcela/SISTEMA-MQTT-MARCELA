@@ -10,6 +10,7 @@ BROKER_PORT = 1883
 
 CERT_SERVIDOR = os.path.join("certs", "servidor", "servidor.crt")
 
+
 class ClienteWeb:
     def __init__(self):
         self.socket = None
@@ -33,17 +34,10 @@ class ClienteWeb:
             self.nome_cliente = nome_cliente
 
             cert_cliente = os.path.join(
-                "certs",
-                "clientes",
-                self.nome_cliente,
-                f"{self.nome_cliente}.crt"
+                "certs", "clientes", self.nome_cliente, f"{self.nome_cliente}.crt"
             )
-
             chave_cliente = os.path.join(
-                "certs",
-                "clientes",
-                self.nome_cliente,
-                f"{self.nome_cliente}.key"
+                "certs", "clientes", self.nome_cliente, f"{self.nome_cliente}.key"
             )
 
             if not os.path.exists(CERT_SERVIDOR):
@@ -55,13 +49,16 @@ class ClienteWeb:
             if not os.path.exists(chave_cliente):
                 return False, f"Chave privada do cliente não encontrada: {chave_cliente}"
 
+            # Contexto SSL: verifica o servidor usando o certificado dele como CA
             contexto_ssl = ssl.create_default_context(
                 ssl.Purpose.SERVER_AUTH,
                 cafile=CERT_SERVIDOR
             )
-
             contexto_ssl.check_hostname = False
 
+            # Carrega o certificado do cliente (assinado pelo servidor como CA)
+            # Isso é o que permite a autenticação mútua (mTLS):
+            # o servidor vai verificar se este certificado foi assinado por ele.
             contexto_ssl.load_cert_chain(
                 certfile=cert_cliente,
                 keyfile=chave_cliente
@@ -75,17 +72,26 @@ class ClienteWeb:
             )
 
             self.socket.connect((BROKER_HOST, BROKER_PORT))
-
             self.conectado = True
 
+            # 1. Informa o nome ao broker para autenticação
             self.enviar({
                 "tipo": "conectar",
                 "id": self.nome_cliente
             })
 
+            # Inicia thread de recepção antes de solicitar pendentes,
+            # para não perder a resposta do broker
             thread = threading.Thread(target=self.receber_mensagens)
             thread.daemon = True
             thread.start()
+
+            # 2. Solicita explicitamente o download de todas as mensagens
+            #    pendentes dos tópicos em que o cliente está inscrito
+            self.enviar({
+                "tipo": "solicitar_pendentes",
+                "id": self.nome_cliente
+            })
 
             return True, f"Cliente {self.nome_cliente} autenticado e conectado com sucesso."
 
