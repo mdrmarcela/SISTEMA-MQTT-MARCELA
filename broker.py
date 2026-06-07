@@ -46,6 +46,7 @@ def obter_common_name(conn):
 
     return None
 
+
 def entregar_pendentes(id_cliente, conn):
     """
     Percorre todas as mensagens de todos os tópicos em que o cliente está inscrito
