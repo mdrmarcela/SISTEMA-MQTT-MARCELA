@@ -10,7 +10,7 @@ BROKER_PORT = 1883
 CERT_SERVIDOR = os.path.join("certs", "servidor", "servidor.crt")
 CHAVE_SERVIDOR = os.path.join("certs", "servidor", "servidor.key")
 
-clientes_conectados = {}   # id_cliente -> conexão socket
+clientes_conectados = {}   # sabe qual cliente (id) está conectado em qual socket (conn) 
 topicos = set()            # conjunto de tópicos criados
 subscricoes = {}           # topico -> conjunto de clientes inscritos
 
@@ -19,7 +19,6 @@ subscricoes = {}           # topico -> conjunto de clientes inscritos
 mensagens_topico = {}
 
 lock = threading.Lock()
-
 
 def enviar(conn, pacote):
     """
@@ -46,7 +45,6 @@ def obter_common_name(conn):
                 return valor
 
     return None
-
 
 def entregar_pendentes(id_cliente, conn):
     """
@@ -77,7 +75,6 @@ def entregar_pendentes(id_cliente, conn):
                 except Exception as e:
                     print(f"[!] Falha ao entregar pendente para {id_cliente}: {e}")
                     break  # Tenta novamente na próxima reconexão
-
 
 def limpar_mensagens_entregues(topico):
     """
