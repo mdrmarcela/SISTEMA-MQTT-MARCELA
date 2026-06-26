@@ -1,7 +1,6 @@
 import socket
 import threading
 import json
-import ssl
 import os
 import hashlib
 
