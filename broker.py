@@ -438,6 +438,5 @@ def iniciar_broker():
         thread.daemon = True
         thread.start()
 
-
 if __name__ == "__main__":
     iniciar_broker()
