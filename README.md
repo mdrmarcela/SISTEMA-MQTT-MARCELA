@@ -1,184 +1,220 @@
-# Sistema Publish/Subscribe com Broker
+# Sistema Publish/Subscribe Seguro - Redes II
 
-Este projeto implementa uma infraestrutura de comunicação composta por um **broker** e clientes, funcionando de forma semelhante ao protocolo **MQTT**, utilizando o modelo **publish/subscribe**.
+Este projeto implementa um sistema de comunicação Publish/Subscribe semelhante ao MQTT, utilizando comunicação via TCP entre clientes e broker.
 
----
+O sistema permite:
 
-## Parte 1 — Comunicação Básica
+* criação de tópicos;
+* inscrição de clientes em tópicos;
+* saída de clientes de tópicos;
+* publicação de mensagens em tópicos;
+* entrega de mensagens para clientes inscritos;
+* buffer de mensagens pendentes para clientes desconectados;
+* autenticação do broker por certificado digital;
+* autenticação de clientes por certificado digital e assinatura;
+* criptografia do fluxo cliente-broker por envelopamento digital próprio;
+* criptografia ponta a ponta do payload das mensagens.
 
-O sistema permite as seguintes funcionalidades:
+## Tecnologias utilizadas
 
-- Criação de tópicos
-- Inscrição de clientes em tópicos
-- Publicação de mensagens em tópicos
-- Recebimento de mensagens pelos clientes inscritos
+* Python
+* Socket TCP
+* Threads
+* JSON
+* Streamlit
+* Cryptography
 
-### Broker
+## Observação importante sobre segurança
 
-O notebook será utilizado como broker. Para iniciá-lo, execute no terminal:
+O projeto não utiliza TLS/SSL.
+
+A comunicação segura foi implementada sobre TCP puro por meio de um envelopamento digital próprio. O cliente valida o certificado digital do broker, gera uma chave de sessão simétrica e envia essa chave criptografada com a chave pública do broker.
+
+Após o handshake, os pacotes trocados entre cliente e broker são criptografados com AES-GCM.
+
+Além disso, o conteúdo das mensagens publicadas nos tópicos possui criptografia ponta a ponta. Dessa forma, o broker consegue ler apenas o cabeçalho necessário para encaminhamento, como tópico e remetente, mas não consegue decodificar o payload da mensagem.
+
+## Estrutura do projeto
+
+```text
+SISTEMA-MQTT-MARCELA/
+│
+├── broker.py
+├── client.py
+├── main.py
+│
+├── certs/
+│   ├── ca_clientes.crt
+│   ├── ca_professor.crt
+│   ├── clientes_autorizados.json
+│   ├── chaves_topicos.json
+│   │
+│   ├── servidor/
+│   │   ├── servidor.crt
+│   │   ├── servidor.csr
+│   │   └── servidor.key
+│   │
+│   └── clientes/
+│       ├── cliente1/
+│       │   ├── cliente1.crt
+│       │   ├── cliente1.csr
+│       │   └── cliente1.key
+│       │
+│       └── cliente2/
+│           ├── cliente2.crt
+│           ├── cliente2.csr
+│           └── cliente2.key
+│
+└── utils/
+    ├── __init__.py
+    └── crypto_utils.py
+```
+
+## Instalação das dependências
+
+Execute:
+
+```bash
+pip install streamlit streamlit-autorefresh cryptography
+```
+
+## Como executar
+
+Primeiro, inicie o broker:
 
 ```bash
 python broker.py
 ```
 
-### Cliente
-
-No arquivo `client.py`, configure o IP do notebook que está rodando o broker:
-
-```python
-BROKER_HOST = "192.168.1.50"
-BROKER_PORT = 1883
-```
-
-Instale as dependências necessárias:
+Depois, em outro terminal, inicie a interface do cliente:
 
 ```bash
-pip install streamlit streamlit-autorefresh
+streamlit run main.py
 ```
 
-Execute a interface do cliente:
+Na tela do Streamlit, conecte usando o nome do cliente correspondente à pasta do certificado.
 
-```bash
-streamlit run app.py
+Exemplos:
+
+```text
+cliente1
+cliente2
 ```
 
-> **Observação:** o computador cliente precisa estar conectado à **mesma rede** que o notebook broker.
+## Funcionamento dos certificados
 
----
+O broker possui um certificado digital em:
 
-## Parte 2 — Autenticação e Bufferização
-
-### O que foi adicionado
-
-**Autenticação mTLS (mútua):**
-- Ao se conectar, o cliente precisa apresentar um certificado X.509
-- O certificado do cliente deve ter sido assinado pelo servidor (processo offline)
-- O broker verifica a assinatura e confere se o CN do certificado bate com o nome informado pelo cliente
-
-**Bufferização de mensagens:**
-- Mensagens publicadas em um tópico ficam armazenadas no broker até que todos os clientes inscritos naquele tópico as recebam
-- Ao reconectar, o cliente solicita explicitamente o download de todas as mensagens pendentes dos tópicos em que está inscrito
-
----
-
-### Estrutura de certificados
-
-```
-certs/
-├── servidor/
-│   ├── servidor.crt   ← certificado do servidor (age como CA)
-│   ├── servidor.key   ← chave privada do servidor
-│   └── servidor.srl   ← controle de seriais das assinaturas
-└── clientes/
-    ├── cliente1/
-    │   ├── cliente1.crt
-    │   ├── cliente1.csr
-    │   └── cliente1.key
-    ├── cliente2/
-    │   ├── cliente2.crt
-    │   ├── cliente2.csr
-    │   └── cliente2.key
-    └── cliente3/
-        ├── cliente3.crt
-        ├── cliente3.csr
-        └── cliente3.key
+```text
+certs/servidor/servidor.crt
 ```
 
----
+e sua chave privada em:
 
-### Roteiro — Criar e assinar certificado de um novo cliente
-
-> Todos os comandos devem ser executados no **Git Bash**, dentro da pasta do projeto.
-
-#### 1. Abrir o Git Bash na pasta do projeto
-
-Clique com o botão direito na pasta do projeto e selecione **Git Bash Here**.
-
-#### 2. Criar a pasta do cliente
-
-```bash
-mkdir -p certs/clientes/cliente3
+```text
+certs/servidor/servidor.key
 ```
 
-#### 3. Gerar o par de chaves do cliente
+A chave privada não deve ser compartilhada.
 
-```bash
-openssl genrsa -out certs/clientes/cliente3/cliente3.key 2048
+O arquivo:
+
+```text
+certs/ca_professor.crt
 ```
 
-#### 4. Gerar o CSR (pedido de assinatura)
+é utilizado pelo cliente para validar se o certificado do broker foi assinado pela Autoridade Certificadora da disciplina.
 
-O cliente gera um CSR com seus dados e envia ao servidor para ser assinado:
+O arquivo:
 
-```bash
-openssl req -new \
-  -key certs/clientes/cliente3/cliente3.key \
-  -out certs/clientes/cliente3/cliente3.csr \
-  -subj "/C=BR/ST=SC/L=Lages/O=RedesII/CN=cliente3"
+```text
+certs/ca_clientes.crt
 ```
 
-#### 5. Servidor assina o certificado do cliente
+é utilizado pelo broker para verificar se os certificados dos clientes foram assinados por uma autoridade confiável.
 
-O servidor usa sua chave privada para assinar o certificado do cliente:
+O arquivo:
 
-```bash
-openssl x509 -req \
-  -in certs/clientes/cliente3/cliente3.csr \
-  -CA certs/servidor/servidor.crt \
-  -CAkey certs/servidor/servidor.key \
-  -CAserial certs/servidor/servidor.srl \
-  -out certs/clientes/cliente3/cliente3.crt \
-  -days 365
+```text
+certs/clientes_autorizados.json
 ```
 
-> **Importante:** usa `-CAserial` (não `-CAcreateserial`) para aproveitar o arquivo `.srl` já existente, mantendo a sequência de seriais.
+contém os fingerprints SHA-256 dos certificados dos clientes autorizados.
 
-#### 6. Verificar se foi assinado corretamente
+Exemplo:
 
-```bash
-openssl verify -CAfile certs/servidor/servidor.crt certs/clientes/cliente3/cliente3.crt
+```json
+{
+    "cliente1": "fingerprint_do_cliente1",
+    "cliente2": "fingerprint_do_cliente2"
+}
 ```
 
-Resultado esperado:
+## Fluxo de autenticação
 
-```
-certs/clientes/cliente3/cliente3.crt: OK
-```
+O processo de autenticação ocorre da seguinte forma:
 
-#### 7. Confirmar Issuer e Subject
+1. O cliente se conecta ao broker usando TCP.
+2. O broker envia seu certificado digital.
+3. O cliente valida se o certificado do broker foi assinado pela CA do professor.
+4. O cliente gera uma chave de sessão AES.
+5. O cliente criptografa essa chave com a chave pública do broker.
+6. O cliente envia seu certificado digital e assina um desafio enviado pelo broker.
+7. O broker valida o certificado do cliente.
+8. O broker verifica se o fingerprint do certificado está autorizado.
+9. O broker verifica a assinatura do desafio.
+10. Após a autenticação, os pacotes passam a ser enviados criptografados.
 
-```bash
-openssl x509 -in certs/clientes/cliente3/cliente3.crt -text -noout | grep -E "Issuer|Subject|CA"
-```
+## Criptografia ponta a ponta
 
-Resultado esperado:
+A criptografia ponta a ponta é aplicada ao conteúdo das mensagens.
 
-```
-Issuer: CN=ServidorBroker   ← assinado pelo servidor
-Subject: CN=cliente3        ← identidade do cliente
-CA:FALSE                    ← cliente não é CA
-```
+Quando um cliente cria um tópico, ele gera uma chave E2E local para esse tópico. Essa chave deve ser compartilhada apenas com clientes autorizados.
 
-#### 8. Conectar como cliente3
+O broker recebe apenas o payload criptografado e não possui a chave necessária para descriptografar a mensagem.
 
-Suba o broker e o cliente normalmente e, na tela de login, digite `cliente3`.
+Exemplo do que o broker consegue ver:
 
----
-
-### Como rodar a Parte 2
-
-#### Broker (notebook)
-
-```bash
-python broker.py
+```text
+Tópico: redes
+Remetente: cliente1
+Payload: criptografado
 ```
 
-#### Cliente (cada computador)
+O broker não consegue ver o texto original enviado pelo cliente.
 
-```bash
-streamlit run app.py
-```
+## Testes realizados
 
-Na tela de login, digite o nome do cliente (`cliente1`, `cliente2` ou `cliente3`) — o sistema buscará automaticamente o certificado correspondente em `certs/clientes/<nome>/`.
+### Teste 1: criação de tópico
 
-> **Observação:** todos os computadores precisam ter a pasta `certs/` com os certificados corretos e estar na mesma rede que o broker.
+O cliente cria um tópico e é inscrito automaticamente nele.
+
+### Teste 2: inscrição em tópico
+
+Outro cliente consegue visualizar o tópico existente e solicitar inscrição.
+
+### Teste 3: publicação de mensagem
+
+Um cliente inscrito consegue publicar uma mensagem no tópico.
+
+### Teste 4: bloqueio de publicação sem inscrição
+
+Um cliente não inscrito não consegue publicar mensagens em um tópico.
+
+### Teste 5: confidencialidade no broker
+
+Ao publicar uma mensagem, o broker não exibe o conteúdo original da mensagem, apenas informa que recebeu um payload criptografado.
+
+### Teste 6: confidencialidade ponta a ponta
+
+Um cliente sem a chave E2E do tópico não consegue ler o conteúdo da mensagem.
+
+### Teste 7: entrega de mensagens pendentes
+
+Se um cliente inscrito estiver desconectado no momento da publicação, a mensagem é armazenada no buffer do broker e entregue quando o cliente se reconecta.
+
+## Observações finais
+
+O sistema atende aos requisitos de comunicação via TCP, autenticação por certificados digitais, autorização de clientes, criptografia do fluxo de comunicação e confidencialidade ponta a ponta do payload das mensagens.
+
+As chaves privadas dos clientes e do broker não devem ser compartilhadas.
