@@ -131,7 +131,7 @@ def obter_common_name_certificado(certificado):
     """
     Obtém o Common Name, de um certificado.
 
-    O CN é usado apenas para identificação/log.
+    O CN é usado apenas para identificação.
     A autenticação real não depende somente dele.
     """
     try:
@@ -158,7 +158,6 @@ def obter_fingerprint_sha256(certificado) -> str:
     """
     fingerprint = certificado.fingerprint(hashes.SHA256())
     return fingerprint.hex()
-
 
 # ============================================================
 # RSA: criptografia assimétrica e assinatura digital
