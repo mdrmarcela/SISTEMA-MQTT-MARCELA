@@ -24,7 +24,6 @@ if "topicos_inscritos" not in st.session_state:
 if "mensagens_por_topico" not in st.session_state:
     st.session_state.mensagens_por_topico = {}
 
-
 cliente = st.session_state.cliente
 
 if not hasattr(cliente, "topicos_desinscritos"):
@@ -304,14 +303,3 @@ else:
                         st.error(mensagem)
                 else:
                     st.warning("Digite uma mensagem antes de enviar.")
-
-# ============================================================
-# Mensagens do sistema
-# ============================================================
-
-mensagens_sistema = st.session_state.mensagens_por_topico.get("Sistema", [])
-
-if mensagens_sistema:
-    with st.expander("Mensagens do sistema"):
-        for mensagem in mensagens_sistema[-10:]:
-            st.write(mensagem)
