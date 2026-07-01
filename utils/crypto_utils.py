@@ -1,8 +1,6 @@
-
 import json
 import base64
 import secrets
-
 from cryptography import x509
 from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes, serialization
@@ -24,13 +22,11 @@ def b64_encode(dados: bytes) -> str:
     """
     return base64.b64encode(dados).decode("utf-8")
 
-
 def b64_decode(texto: str) -> bytes:
     """
     Converte texto Base64 de volta para bytes.
     """
     return base64.b64decode(texto.encode("utf-8"))
-
 
 # ============================================================
 # Leitura de certificados e chaves em formato PEM
@@ -51,7 +47,6 @@ def carregar_certificado(caminho_certificado: str):
 
     return x509.load_pem_x509_certificate(dados)
 
-
 def carregar_chave_privada(caminho_chave: str):
     """
     Lê uma chave privada de um arquivo .key.
@@ -67,7 +62,6 @@ def carregar_chave_privada(caminho_chave: str):
         password=None
     )
 
-
 def certificado_para_pem(caminho_certificado: str) -> str:
     """
     Lê um certificado e retorna seu conteúdo em texto PEM.
@@ -77,7 +71,6 @@ def certificado_para_pem(caminho_certificado: str) -> str:
     """
     with open(caminho_certificado, "r", encoding="utf-8") as arquivo:
         return arquivo.read()
-
 
 def carregar_certificado_pem_texto(texto_pem: str):
     """
@@ -89,7 +82,6 @@ def carregar_certificado_pem_texto(texto_pem: str):
     return x509.load_pem_x509_certificate(
         texto_pem.encode("utf-8")
     )
-
 
 # ============================================================
 # Validação de certificados
@@ -125,7 +117,6 @@ def verificar_assinatura_certificado(certificado, certificado_ca) -> bool:
 
     except Exception:
         return False
-
 
 def obter_common_name_certificado(certificado):
     """
@@ -183,7 +174,6 @@ def criptografar_com_chave_publica(chave_publica, dados: bytes) -> bytes:
         )
     )
 
-
 def descriptografar_com_chave_privada(chave_privada, dados_criptografados: bytes) -> bytes:
     """
     Descriptografa dados usando a chave privada RSA.
@@ -200,7 +190,6 @@ def descriptografar_com_chave_privada(chave_privada, dados_criptografados: bytes
         )
     )
 
-
 def assinar_dados(chave_privada, dados: bytes) -> bytes:
     """
     Assina dados usando a chave privada RSA.
@@ -213,7 +202,6 @@ def assinar_dados(chave_privada, dados: bytes) -> bytes:
         padding.PKCS1v15(),
         hashes.SHA256()
     )
-
 
 def verificar_assinatura_dados(chave_publica, assinatura: bytes, dados: bytes) -> bool:
     """
@@ -237,7 +225,6 @@ def verificar_assinatura_dados(chave_publica, assinatura: bytes, dados: bytes) -
     except Exception:
         return False
 
-
 # ============================================================
 # AES-GCM para envelopamento digital próprio
 # ============================================================
@@ -250,7 +237,6 @@ def gerar_chave_sessao() -> bytes:
     cliente e broker depois do handshake.
     """
     return AESGCM.generate_key(bit_length=256)
-
 
 def criptografar_json(chave: bytes, pacote: dict) -> dict:
     """
@@ -287,7 +273,6 @@ def criptografar_json(chave: bytes, pacote: dict) -> dict:
         "dados": b64_encode(dados_criptografados)
     }
 
-
 def descriptografar_json(chave: bytes, envelope: dict) -> dict:
     """
     Descriptografa um envelope AES-GCM e retorna o pacote JSON original.
@@ -308,7 +293,6 @@ def descriptografar_json(chave: bytes, envelope: dict) -> dict:
     # Converte o JSON de volta para dicionário Python.
     return json.loads(dados_json.decode("utf-8"))
 
-
 # ============================================================
 # Criptografia ponta a ponta por tópico
 # ============================================================
@@ -324,7 +308,6 @@ def gerar_chave_topico() -> str:
     """
     chave = AESGCM.generate_key(bit_length=256)
     return b64_encode(chave)
-
 
 def criptografar_payload_ponta_a_ponta(chave_topico_b64: str, mensagem: str) -> dict:
     """
@@ -354,7 +337,6 @@ def criptografar_payload_ponta_a_ponta(chave_topico_b64: str, mensagem: str) -> 
         "nonce": b64_encode(nonce),
         "payload": b64_encode(payload_criptografado)
     }
-
 
 def descriptografar_payload_ponta_a_ponta(chave_topico_b64: str, envelope_payload: dict) -> str:
     """
