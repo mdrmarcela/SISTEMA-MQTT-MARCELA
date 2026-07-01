@@ -1,3 +1,4 @@
+
 import json
 import base64
 import secrets
@@ -9,7 +10,6 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.exceptions import InvalidSignature
 
-
 # ============================================================
 # Funções auxiliares de Base64
 # ============================================================
@@ -18,8 +18,8 @@ def b64_encode(dados: bytes) -> str:
     """
     Converte bytes para texto Base64.
 
-    Isso é necessário porque dados criptográficos, como chaves,
-    assinaturas e nonces, são bytes. Como o sistema troca mensagens
+    Isso é necessário porque dados criptográficos, como chaves e 
+    assinaturas  são bytes. Como o sistema troca mensagen
     em JSON, precisamos transformar esses bytes em texto.
     """
     return base64.b64encode(dados).decode("utf-8")
@@ -38,7 +38,7 @@ def b64_decode(texto: str) -> bytes:
 
 def carregar_certificado(caminho_certificado: str):
     """
-    Lê um certificado digital de um arquivo .crt/.pem.
+    Lê um certificado digital de um arquivo .crt/
 
     Retorna um objeto certificado que pode ser usado para:
     - verificar assinatura;
@@ -97,7 +97,7 @@ def carregar_certificado_pem_texto(texto_pem: str):
 
 def verificar_assinatura_certificado(certificado, certificado_ca) -> bool:
     """
-    Verifica se um certificado foi assinado pela CA informada.
+    Verifica se um certificado foi assinado pela CA.
 
     No projeto, isso é usado em dois momentos:
 
@@ -107,7 +107,7 @@ def verificar_assinatura_certificado(certificado, certificado_ca) -> bool:
 
     2. Broker validando o certificado do cliente:
        O broker verifica se o certificado do cliente foi assinado
-       por uma autoridade confiável.
+       por mim.
     """
     chave_publica_ca = certificado_ca.public_key()
 
@@ -129,7 +129,7 @@ def verificar_assinatura_certificado(certificado, certificado_ca) -> bool:
 
 def obter_common_name_certificado(certificado):
     """
-    Obtém o Common Name, ou CN, de um certificado.
+    Obtém o Common Name, de um certificado.
 
     O CN é usado apenas para identificação/log.
     A autenticação real não depende somente dele.
