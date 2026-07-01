@@ -28,11 +28,7 @@ from utils.crypto_utils import (
 # ============================================================
 
 # Endereço do broker.
-# localhost significa que o broker está rodando na mesma máquina.
 BROKER_HOST = "localhost"
-
-# Porta usada pelo broker.
-# A porta 1883 é a porta padrão do MQTT.
 BROKER_PORT = 1883
 
 # Certificado da CA do professor.
@@ -64,14 +60,13 @@ class ClienteWeb:
         # Socket TCP usado para conversar com o broker.
         self.socket = None
 
-        # Nome do cliente, por exemplo: cliente1 ou cliente2.
+        # Nome do cliente.
         self.nome_cliente = ""
 
         # Indica se o cliente está conectado ao broker.
         self.conectado = False
 
         # Lista onde ficam mensagens recebidas.
-        # O main.py lê essa lista para exibir na tela.
         self.mensagens = []
 
         # Lista de tópicos recebida do broker.
@@ -88,10 +83,6 @@ class ClienteWeb:
         self.chave_sessao = None
 
         # Dicionário com as chaves E2E dos tópicos.
-        # Exemplo:
-        # {
-        #     "Avisos": "chave_em_base64"
-        # }
         self.chaves_topicos = self.carregar_chaves_topicos()
 
     # ============================================================
@@ -160,22 +151,10 @@ class ClienteWeb:
     # ============================================================
 
     def enviar_json(self, pacote):
-        """
-        Envia um pacote JSON pelo TCP.
-
-        Como TCP trabalha com fluxo de bytes, usamos '\n'
-        para indicar onde um pacote termina.
-        """
         mensagem = json.dumps(pacote, ensure_ascii=False) + "\n"
         self.socket.sendall(mensagem.encode("utf-8"))
 
     def receber_json(self):
-        """
-        Recebe um pacote JSON pelo TCP.
-
-        O TCP pode entregar dados quebrados ou agrupados.
-        Por isso, usamos um buffer até encontrar '\n'.
-        """
         while "\n" not in self.buffer:
             dados = self.socket.recv(4096)
 
@@ -185,14 +164,11 @@ class ClienteWeb:
 
             self.buffer += dados.decode("utf-8")
 
-        # Separa uma linha completa do restante do buffer.
         linha, self.buffer = self.buffer.split("\n", 1)
 
-        # Ignora linhas vazias.
         if not linha.strip():
             return self.receber_json()
 
-        # Converte o JSON recebido em dicionário Python.
         return json.loads(linha)
 
     # ============================================================
@@ -205,7 +181,6 @@ class ClienteWeb:
         e envia para o broker.
 
         Essa é a camada de envelopamento digital próprio.
-        Não usamos TLS.
         """
         envelope = criptografar_json(self.chave_sessao, pacote)
 
@@ -419,7 +394,6 @@ class ClienteWeb:
             if not self.nome_cliente:
                 return False, "Nome do cliente não informado."
 
-            # Cria o socket TCP.
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
             # Conecta ao broker.
