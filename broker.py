@@ -21,12 +21,7 @@ from utils.crypto_utils import (
     descriptografar_json
 )
 
-# ============================================================
-# Configurações principais do broker
-# ============================================================
-
 # Endereço onde o broker vai escutar conexões.
-# 0.0.0.0 permite aceitar conexões da própria máquina e de outros computadores da rede.
 BROKER_HOST = "0.0.0.0"
 
 # Porta usada pelo broker. A porta 1883 é a porta padrão do MQTT.
@@ -40,7 +35,7 @@ CERT_SERVIDOR = os.path.join("certs", "servidor", "marcela.crt")
 # Essa chave nunca deve ser compartilhada.
 CHAVE_SERVIDOR = os.path.join("certs", "servidor", "servidor.key")
 
-# Certificado da autoridade que assinou os certificados dos clientes.
+# Certificado da autoridade que assinou os certificados dos clientes (eu).
 # O broker usa esse certificado para validar se o certificado do cliente é confiável.
 CA_CLIENTES = os.path.join("certs", "ca_clientes.crt")
 
@@ -51,48 +46,12 @@ ARQUIVO_CLIENTES_AUTORIZADOS = os.path.join(
     "clientes_autorizados.json"
 )
 
-# ============================================================
-# Estruturas em memória do broker
-# ============================================================
+clientes_conectados = {} # Guarda os clientes conectados no momento.
+topicos = set() # Guarda os tópicos existentes no broker. Como é um set, não permite tópicos duplicados.
+subscricoes = {} # Guarda quais clientes estão inscritos em cada tópico.
+mensagens_topico = {} # Buffer de mensagens pendentes.
 
-# Guarda os clientes conectados no momento.
-# Exemplo:
-# {
-#     "cliente1": {
-#         "conn": socket_do_cliente,
-#         "chave_sessao": chave_AES_da_conexao
-#     }
-# }
-clientes_conectados = {}
-
-# Guarda os tópicos existentes no broker.
-# Como é um set, não permite tópicos duplicados.
-topicos = set()
-
-# Guarda quais clientes estão inscritos em cada tópico.
-# Exemplo:
-# {
-#     "redes": {"cliente1", "cliente2"}
-# }
-subscricoes = {}
-
-# Buffer de mensagens pendentes.
-# Guarda mensagens que ainda não foram entregues para clientes offline.
-# Exemplo:
-# {
-#     "redes": [
-#         {
-#             "pacote": pacote_da_mensagem,
-#             "pendentes": {"cliente2"}
-#         }
-#     ]
-# }
-mensagens_topico = {}
-
-# Lock usado para evitar conflitos quando várias threads acessam
-# as mesmas estruturas ao mesmo tempo.
 lock = threading.Lock()
-
 
 # ============================================================
 # Comunicação TCP com pacotes JSON separados por \n
@@ -103,11 +62,10 @@ def enviar_json(conn, pacote):
     Envia um pacote JSON pela conexão TCP.
 
     O TCP trabalha com fluxo de bytes, e não com mensagens separadas.
-    Por isso, adicionamos '\n' no final para marcar onde cada pacote termina.
+    Por isso, adicionei '\n' no final para marcar onde cada pacote termina.
     """
     mensagem = json.dumps(pacote, ensure_ascii=False) + "\n"
     conn.sendall(mensagem.encode("utf-8"))
-
 
 def receber_json(conn, buffer):
     """
@@ -145,7 +103,7 @@ def enviar_criptografado(conn, chave_sessao, pacote):
     Criptografa um pacote usando a chave de sessão AES e envia pela conexão TCP.
 
     Essa função representa o envelopamento digital próprio do projeto.
-    Não é TLS/SSL. É uma camada de segurança implementada manualmente.
+     É uma camada de segurança implementada manualmente.
     """
     envelope = criptografar_json(chave_sessao, pacote)
 
@@ -302,7 +260,7 @@ def realizar_handshake(conn):
     if not certificado_valido:
         return None, None, buffer, "Certificado do cliente não foi assinado por uma CA confiável."
 
-    # O CN é obtido apenas para log/apresentação.
+    # O CN é obtido apenas para apresentação.
     # A autenticação real não depende apenas do CN.
     cn_cliente = obter_common_name_certificado(certificado_cliente)
 
@@ -580,7 +538,7 @@ def tratar_cliente(conn, addr):
                         })
                         continue
 
-                    # Regra do projeto: não permite que o último inscrito saia.
+                    # não permite que o último inscrito saia.
                     if len(inscritos) == 1:
                         enviar_criptografado(conn, chave_sessao, {
                             "tipo": "erro",
@@ -831,7 +789,6 @@ def iniciar_broker():
     servidor.listen(5)
 
     print(f"[*] Broker TCP ouvindo em {BROKER_HOST}:{BROKER_PORT}")
-    print("[*] TLS/SSL não está sendo usado.")
     print("[*] Envelopamento digital próprio ativo.")
     print("[*] Autenticação de clientes por certificado e assinatura ativa.")
     print("[*] Payload ponta a ponta: broker não decodifica mensagens.")
